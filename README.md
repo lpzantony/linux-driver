@@ -9,14 +9,11 @@ Les fichiers `/boot/config-*` sont générés par la compilation du noyau. Ils s
 - **QUESTION 3 :** *Existe-t-il d'autres cibles du Makefile ayant un impact sur la configuration ? Si oui lesquelles et à quoi peuvent-elles servir ?*
 
 Il existe au total une vingtaine  d'autres configurations. La principale différence entre ces configurations repose sur l'outil utilisé pour configurer le noyau (Qt, GTK+ ...).  
-Il exitste egalement des configurations qui valident/invalident toutes les options, ou même des configurations random pour les plus courageux.
+Il exitste également des configurations qui valident/ invalident toutes les options, ou même des configurations random pour les plus courageux. (Ou plus sérieusement, pour pouvoir tester la compatibilité entre les options)
 
 ### Exploration du noyau
-- **QUESTION 2 :** *Cherchez à quoi correspondent tous les fichiers et les répertoires à la racine des sources du noyau*
 
-
-
-- **QUESTION 3 :** *Calculez la taille de chacun des répertoires à la racine (indice : utilisez la commande du). Qu'en pensez-vous ?*
+- **QUESTION 3 :** *Calculez la taille de chacun des répertoires à la racine (indice : utilisez la commande `du`). Qu'en pensez-vous ?*
 
 Avec `$ du -s ./*/` on obtient en octets la taille des dossiers suivants:
 
@@ -51,9 +48,6 @@ La majorité des dossiers restent en dessous des 40 Mo, sauf le dossier `build` 
 Le dossier `arch` est le seul qui est spécifique pour chaque architecture. Tous les autres dossiers contiennent du code indépendant de la plateforme.
 
 
-Deux sites utilisant LXR sont disponibles pour naviguer dans le code source du noyau Linux :
-
-
 ### Outils pour l'exploration du code source
 
 Deux sites utilisant LXR sont disponibles pour naviguer dans le code source du noyau Linux :
@@ -62,19 +56,43 @@ Deux sites utilisant LXR sont disponibles pour naviguer dans le code source du n
 >http://lxr.free-electrons.com/source
 
 
+## **2. Écriture d'un premier module**
+### Réflexion
+- **QUESTION :** *Quels sont les avantages de l'utilisation d'un module plutôt que du code compilé en dur directement dans l'image du noyau ?*
 
-### Multiplication and Overflow
-- **QUESTION :** *Choose two 5-bi*
+Faire un module permet de ne charger ses fonctionnalités que lorsqu'elles sont requises. On allège donc le noyau.
+
+### Votre premier module
+- **QUESTION :** *Chargez votre module (depuis la carte). Rappel : si vous avez compilé votre module quelque part dans /home/XXX sur le PC, il est visible depuis la carte grâce à SSHFS*
+
+`sudo insmod first.ko`
 
 
+- **QUESTION :** *Pourquoi ne se passe-t-il rien (en apparence) ?*
 
-## **2. Processor Design**
-### Instruction Set Architecture
-- **QUESTION :** *Des*
+Car le code C du module ne comporte pas de `printf()`, mais plutôt des `pr_info()` qui n'affichent rien dans la console. On peut tout de même voir les message apparaître avec la commande `$ dmesg`.
 
+- **QUESTION :** *Déchargez votre module*
 
+`rmmod first`
 
-- **QUESTION :** *Provide *
+### Makefile pour la compilation de modules externes
+- **QUESTION :** *Lisez la documentation et expliquez comment fonctionne le Makefile présenté plus haut*
 
-### 2.2 Pipelining
-- **QUESTION :** *Draw a*
+Extrait de `Documentation/kbuild/modules.txt` :
+
+>The check for KERNELRELEASE is used to separate the two parts of the makefile. In the example, kbuild will only see the two assignments, whereas "make" will see everything except these two assignments. This is due to two passes made on the file: the first pass is by the "make" instance run on the command line; the second pass is by the kbuild system, which is initiated by the parameterized "make" in the default target.
+
+ Donc le fichier Makefile se découpe en deux parties : celle visible par kbuild (`obj-m  := first.o`) et celle vue par make:
+
+ ```make
+ KDIR ?= /lib/modules/`uname -r`/build
+
+ default:
+ 	$(MAKE) -C $(KDIR) M=$$PWD
+```
+
+Pour compiler un module externe, taper la commande:
+
+>make CROSS_COMPILE=arm-linux-gnueabihf- ARCH=arm KDIR=/home/alopez/linux-socfpga/build/
+
