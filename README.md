@@ -20,15 +20,31 @@ Il exitste egalement des configurations qui valident/invalident toutes les optio
 
 Avec `$ du -s ./*/` on obtient en octets la taille des dossiers suivants:
 
-
-
-arch|block|build|certs|crypto|Documentation|drivers|firmware|fs|include |init
-----|-----|-----|-----|------|-------------|-------|--------|--|--------|----
-138M|1,2M |1,1G	|28K  |3,1M  |35M          |395M   |6,1M    |37M |35M |192K
-
-ipc|kernel|lib|mm|net|samples|scripts|security|sound|tools|usr|virt
----|------|---|--|---|-------|-------|--------|-----|-----|---|----
-248K |7,4M |3,7M |3,3M |27M |648K |3,2M |2,4M |32M |13M |36K |516K
+```
+138M	./arch/  
+1,2M	./block/  
+1,1G	./build/  
+28K     ./certs/  
+3,1M	./crypto/  
+35M     ./Documentation/  
+395M	./drivers/  
+6,1M	./firmware/  
+37M     ./fs/  
+35M     ./include/  
+192K	./init/  
+248K	./ipc/  
+7,4M	./kernel/  
+3,7M	./lib/  
+3,3M	./mm/  
+27M     ./net/  
+648K	./samples/  
+3,2M	./scripts/  
+2,4M	./security/  
+32M     ./sound/  
+13M     ./tools/  
+36K     ./usr/  
+516K	./virt/  
+```
 
 La majorité des dossiers restent en dessous des 40 Mo, sauf le dossier `build` qui atteint 1,1 Go ainsi que le dossier `driver` à 395 Mo.
 
