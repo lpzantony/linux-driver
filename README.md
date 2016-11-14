@@ -21,6 +21,7 @@ Il exitste egalement des configurations qui valident/invalident toutes les optio
 Avec `$ du -s ./*/` on obtient en octets la taille des dossiers suivants:
 
 
+
 arch|block|build|certs|crypto|Documentation|drivers|firmware|fs|include |init
 ----|-----|-----|-----|------|-------------|-------|--------|--|--------|----
 138M|1,2M |1,1G	|28K  |3,1M  |35M          |395M   |6,1M    |37M |35M |192K
