@@ -7,6 +7,10 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 
+//############################################################################################//
+//#######################################[ Constants ]########################################//
+//############################################################################################//
+
 // I2C Registers
 #define DEVID           0x00
 #define BW_RATE         0x2C //0x0A for 100Hz
@@ -31,36 +35,26 @@
 #define Y_CHAN		1
 #define Z_CHAN		2
 
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("My i2c accel driver");
+MODULE_AUTHOR("alopez");
+
 struct accel_device {
-        /* Données propres à un périphérique (exemple) */
+        /* channel currently in use */
         int used_channel;
+        struct i2c_client *client;
         /* Le périphérique misc correspondant */
         struct miscdevice miscdev;
 };
 
-char accel_write_byte(struct i2c_client *client, char reg_addr,	char reg_value)
-{
-        char send_buf[2] = {reg_addr, reg_value};
-        return (i2c_master_send(client,send_buf, 2)==2);
-}
+//############# Functions declaration
+char            i2c_write_byte  (struct i2c_client *client, char reg_addr,	char reg_value);
+char            i2c_read_byte   (struct i2c_client *client, char reg_addr);
+void            i2c_init  (struct i2c_client *client);
 
-char accel_read_byte(struct i2c_client *client, char reg_addr)
-{
-	char buf = reg_addr;
-	i2c_master_send(client, &buf,1);
-        i2c_master_recv(client, &buf, 1);
-	return buf;
-}
-
-void accel_init(struct i2c_client *client)
-{
-        dev_info(&client->dev,"DevID : 0x%02X (should be 0xE5)\n", accel_read_byte(client, DEVID));
-	accel_write_byte(client, BW_RATE, RATE_100_HZ);
-	accel_write_byte(client, INT_ENABLE, RESET_VAL);
-	accel_write_byte(client, DATA_FORMAT, RESET_VAL);
-	accel_write_byte(client, FIFO_CTL, RESET_VAL);
-	accel_write_byte(client, POWER_CTL, MEASURE_MODE);
-}
+//############################################################################################//
+//###################################[ Driver functions ]#####################################//
+//############################################################################################//
 
 static ssize_t accel_read(struct file *file, char __user *buf, size_t count, loff_t * f_pos)
 {
@@ -138,9 +132,6 @@ static int accel_probe(struct i2c_client *client,
         accel_fops->unlocked_ioctl = accel_ioctl;
         accel_fops->compat_ioctl = accel_ioctl;
 
-
-
-
 	static struct accel_device *acceldev;
         // Alloue la mémoire pour une nouvelle structure accel_device
         acceldev = devm_kzalloc(&client->dev, sizeof(struct accel_device), GFP_KERNEL);
@@ -149,6 +140,7 @@ static int accel_probe(struct i2c_client *client,
         // Initialise la structure accel_device, par exemple avec les
         // informations issues du Device Tree
         acceldev->used_channel = X_CHAN;
+        acceldev->client = client;
 
         // Initialise la partie miscdevice de accel_device
         acceldev->miscdev.minor = MISC_DYNAMIC_MINOR;
@@ -162,7 +154,7 @@ static int accel_probe(struct i2c_client *client,
         misc_register(&acceldev->miscdev);
 
         // sending init i2c paquets
-        accel_init(client);
+        i2c_init(client);
         return 0;
 }
 
@@ -172,9 +164,15 @@ static int accel_remove(struct i2c_client *client)
 	acceldev = i2c_get_clientdata(client);
 	misc_deregister(&acceldev->miscdev);
 
-	accel_write_byte(client, POWER_CTL, STANDBY_MODE);
+	i2c_write_byte(client, POWER_CTL, STANDBY_MODE);
         return 0;
 }
+
+
+
+//############################################################################################//
+//##################################[ Global structures ]#####################################//
+//############################################################################################//
 
 static struct i2c_device_id accel_idtable[] = {
     { "accel", 0 },
@@ -205,7 +203,30 @@ static struct i2c_driver accel_driver = {
 
 module_i2c_driver(accel_driver);
 
+//############################################################################################//
+//#####################################[ I2C FUNCTONS ]#######################################//
+//############################################################################################//
 
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("My i2c accel driver");
-MODULE_AUTHOR("alopez");
+char i2c_write_byte(struct i2c_client *client, char reg_addr,	char reg_value)
+{
+        char send_buf[2] = {reg_addr, reg_value};
+        return (i2c_master_send(client,send_buf, 2)==2);
+}
+
+char i2c_read_byte(struct i2c_client *client, char reg_addr)
+{
+	char buf = reg_addr;
+	i2c_master_send(client, &buf,1);
+        i2c_master_recv(client, &buf, 1);
+	return buf;
+}
+
+void i2c_init(struct i2c_client *client)
+{
+        dev_info(&client->dev,"DevID : 0x%02X (should be 0xE5)\n", i2c_read_byte(client, DEVID));
+	i2c_write_byte(client, BW_RATE, RATE_100_HZ);
+	i2c_write_byte(client, INT_ENABLE, RESET_VAL);
+	i2c_write_byte(client, DATA_FORMAT, RESET_VAL);
+	i2c_write_byte(client, FIFO_CTL, RESET_VAL);
+	i2c_write_byte(client, POWER_CTL, MEASURE_MODE);
+}
