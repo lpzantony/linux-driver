@@ -67,32 +67,23 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                 pr_alert("accel device has no memory allocated! \n");
                 return -1;
         }
-        //###### Reading accel X, Y and Z values
-        char send_buf = DATAX0;
-	char recv_buf[6];
-        int retval;
 
-        retval = i2c_master_send(acceldev->client, &send_buf,1);
-        retval = i2c_master_recv(acceldev->client,recv_buf, 6);
-        if(retval != 6) return -1;
+        //###### Reading accel X, Y and Z values
         char retval8;
 	switch(acceldev->used_channel){
 	case X_CHAN:
-		//retval8 = (recv_buf[1]<<8) + recv_buf[0]; // if retval8 is an int
-                retval8 = ((recv_buf[1]>>7)<<7) + (recv_buf[0] & 0x7F);  // if retval8 is a char
+                retval8 = i2c_read_byte(acceldev->client,DATAX1);
 		break;
 	case Y_CHAN:
-		//retval8 = (recv_buf[3]<<8) + recv_buf[2];
-                retval8 = ((recv_buf[3]>>7)<<7) + (recv_buf[2] & 0x7F);
+                retval8 = i2c_read_byte(acceldev->client,DATAY1);
 		break;
 	case Z_CHAN:
-		//retval8 = (recv_buf[5]<<8) + recv_buf[4];
-                retval8 = ((recv_buf[5]>>7)<<7) + (recv_buf[4] & 0x7F);
+                retval8 = i2c_read_byte(acceldev->client,DATAZ1);
 		break;
 	}
 
         //######  Sending value to user
-        retval = copy_to_user(buf, &retval8, 1);
+        int retval = copy_to_user(buf, &retval8, 1);
 
         if (retval==0){    // if true then have success
                 return 0;
@@ -100,23 +91,6 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                 dev_alert(&acceldev->client->dev, " Failed to send %d characters to the user\n", retval);
                 return -1;              // Failed
         }
-
-
-        /*
-        int retval = 0;
-        char msglen = 46;
-        char msg[46] = "This msg has been written by the accel_reag()";
-        // copy_to_user has the format ( * to, *from, size) and returns 0 on success
-        retval = copy_to_user(buf, msg, 46);
-
-        if (retval==0){            // if true then have success
-                pr_alert(KERN_INFO "EBBChar: Sent %d characters to the user\n", 46);
-                return 0;  // clear the position to the start and return 0
-        } else {
-                pr_alert(KERN_INFO "EBBChar: Failed to send %d characters to the user\n", retval);
-                return -EFAULT;              // Failed -- return a bad address message (i.e. -14)
-        }
-        */
         return 0;
 }
 
