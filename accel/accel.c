@@ -46,6 +46,11 @@ struct accel_device {
         /* Le périphérique misc correspondant */
         struct miscdevice miscdev;
 };
+static struct accel_device *acceldev;
+
+static char used_channel;
+module_param(used_channel, byte, S_IRUGO);
+MODULE_PARM_DESC(used_channel, "The channel read by read() X=0, Y=1, Z=2");
 
 //############# Functions declaration
 char            i2c_write_byte  (struct i2c_client *client, char reg_addr,	char reg_value);
@@ -58,27 +63,46 @@ void            i2c_init  (struct i2c_client *client);
 
 static ssize_t accel_read(struct file *file, char __user *buf, size_t count, loff_t * f_pos)
 {
-        pr_alert("accel_read() called\n");
-	/*
+        if(acceldev == 0) {
+                pr_alert("accel device has no memory allocated! \n");
+                return -1;
+        }
+        //###### Reading accel X, Y and Z values
         char send_buf = DATAX0;
 	char recv_buf[6];
-        int retval = i2c_master_send(client, &send_buf,1);
-        retval = i2c_master_recv(client,recv_buf, 6);
+        int retval;
+
+        retval = i2c_master_send(acceldev->client, &send_buf,1);
+        retval = i2c_master_recv(acceldev->client,recv_buf, 6);
         if(retval != 6) return -1;
+        char retval8;
 	switch(acceldev->used_channel){
 	case X_CHAN:
-		retval = recv_buf[1]<<8 + recv_buf[0];
+		//retval8 = (recv_buf[1]<<8) + recv_buf[0]; // if retval8 is an int
+                retval8 = ((recv_buf[1]>>7)<<7) + (recv_buf[0] & 0x7F);  // if retval8 is a char
 		break;
 	case Y_CHAN:
-		retval = recv_buf[3]<<8 + recv_buf[2];
+		//retval8 = (recv_buf[3]<<8) + recv_buf[2];
+                retval8 = ((recv_buf[3]>>7)<<7) + (recv_buf[2] & 0x7F);
 		break;
 	case Z_CHAN:
-		retval = recv_buf[5]<<8 + recv_buf[4];
+		//retval8 = (recv_buf[5]<<8) + recv_buf[4];
+                retval8 = ((recv_buf[5]>>7)<<7) + (recv_buf[4] & 0x7F);
 		break;
 	}
-	*/
+
+        //######  Sending value to user
+        retval = copy_to_user(buf, &retval8, 1);
+
+        if (retval==0){    // if true then have success
+                return 0;
+        } else {
+                dev_alert(&acceldev->client->dev, " Failed to send %d characters to the user\n", retval);
+                return -1;              // Failed
+        }
 
 
+        /*
         int retval = 0;
         char msglen = 46;
         char msg[46] = "This msg has been written by the accel_reag()";
@@ -92,29 +116,29 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                 pr_alert(KERN_INFO "EBBChar: Failed to send %d characters to the user\n", retval);
                 return -EFAULT;              // Failed -- return a bad address message (i.e. -14)
         }
-
+        */
         return 0;
 }
 
 static long accel_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	/*
+
 	switch(arg){
 	case X_CHAN:
 		acceldev->used_channel = X_CHAN;
+                used_channel = X_CHAN;
 		break;
 	case Y_CHAN:
 		acceldev->used_channel = Y_CHAN;
+                used_channel = Y_CHAN;
 		break;
 	case Z_CHAN:
 		acceldev->used_channel = Z_CHAN;
+                used_channel = Z_CHAN;
 		break;
 	default:
-		acceldev->used_channel = X_CHAN;
-		break;
+		return -1;
 	}
-	*/
-        //pr_alert("accel_ioctl() called\n");
         return 0;
 }
 
@@ -132,13 +156,14 @@ static int accel_probe(struct i2c_client *client,
         accel_fops->unlocked_ioctl = accel_ioctl;
         accel_fops->compat_ioctl = accel_ioctl;
 
-	static struct accel_device *acceldev;
+	//static struct accel_device *acceldev;
         // Alloue la mémoire pour une nouvelle structure accel_device
         acceldev = devm_kzalloc(&client->dev, sizeof(struct accel_device), GFP_KERNEL);
         if (!acceldev) return -ENOMEM;
 
         // Initialise la structure accel_device, par exemple avec les
         // informations issues du Device Tree
+        used_channel = X_CHAN;
         acceldev->used_channel = X_CHAN;
         acceldev->client = client;
 

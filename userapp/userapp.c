@@ -2,11 +2,12 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define X_CHAN		0
+#define Y_CHAN		1
+#define Z_CHAN		2
+
 int main (void)
 {
-        //test msg
-        printf("HELLL YEAHHHH!\n");
-
         //opening accel driver
         int fd = open("/dev/accelX", O_RDWR);
         if(fd == -1){
@@ -17,18 +18,17 @@ int main (void)
 
 
         //reading from accel driver
-        ssize_t msglen = 46;
-        char msg[46]="";
-        int retval = read(fd, msg, 46);
+        char msg;
+        int retval = read(fd, &msg, 1);
         if(retval == -1){
-                perror("could not open /dev/accelX");
+                perror("could not read /dev/accelX");
                 return -1;
         }
-        printf("retval = %i, %s\n", retval, msg);
+        printf("retval = %i, 0x%02X\n", retval, msg);
 
 
         // ioctl on accel driver
-        retval = ioctl( fd, 0, 0);
+        retval = ioctl( fd, 0, Z_CHAN);
         if(retval == -1){
                 perror("could not use ioctl() on /dev/accelX");
                 return -1;
