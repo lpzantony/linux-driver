@@ -97,8 +97,11 @@ Pour compiler un module externe, taper la commande:
 >make CROSS_COMPILE=arm-linux-gnueabihf- ARCH=arm KDIR=/home/alopez/linux-socfpga/build/
 
 ### Gestionnaires d'interruptions
-- **QUESTION :** *Faites un tableau récapitulant ce qu'a le droit de faire ou pas les fonctions utilisées dans chacun des cas : gestionnaire d'interruption classique, tasklet, workqueue, threaded IRQ, ainsi que la latence d'exécution des trois derniers mécanismes.*
+- **QUESTION :** *Faites un tableau récapitulant ce qu'a le droit de faire ou pas les fonctions utilisées dans chacun des cas : gestionnaire d'interruption classique, __tasklet, workqueue, threaded IRQ__, ainsi que la latence d'exécution des trois derniers mécanismes.*
 
-testtab|testtab2
--------|--------
-1      | 2
+gestionnaire | Droits du Handler
+-------------|-------------------
+gestionnaire d'interruption classique (__GIC__)| Pas d'échange vers le userspace, execution la plus rapide possible et pas de fonctions bloquantes
+tasklet      | On peut executer des traitements relativement longs mais toujours pas le droit aux fonctions bloquantes. Ce gestionnaire d'interruption s'exécute toujours dans le contexte d'interruption donc assez rapidement après le GIC
+workqueue    | Contrairement aux tasklets, le travail effectué par une workqueue est exécuté dans le contexte d'un processus, on peut donc prendre tout le temps dont on a besoin et même appeler des fonctions bloquantes. Une workqueue peut être explicitement retardée avec une valeur de temps exprimée en _jiffies_. Elle est donc possiblement exécutée bien plus tard que le GIC.
+threaded IRQ |le gestionnaire threaded IRQ permet de traiter une interruption dans un thread noyau. Les opérations de traitement de l'interruption peuvent alors être bloquantes.
