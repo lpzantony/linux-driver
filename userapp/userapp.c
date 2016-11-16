@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define X_CHAN		0
 #define Y_CHAN		1
@@ -42,7 +43,13 @@ int main (void)
                         perror("could not read /dev/accelX");
                         return -1;
                 }
-                printf("retval = %i, 0x%02X\n", retval, msg);
+                //printf("retval = %i, 0x%02X\n", retval, msg);
+                int i = 0;
+                for(i=0; i<msg/5; i++){
+                        printf("=");
+                }
+                printf(">\n");
+                usleep(8000);
         }
 
         //closing accel driver

@@ -96,3 +96,9 @@ Pour compiler un module externe, taper la commande:
 
 >make CROSS_COMPILE=arm-linux-gnueabihf- ARCH=arm KDIR=/home/alopez/linux-socfpga/build/
 
+### Gestionnaires d'interruptions
+- **QUESTION :** *Faites un tableau récapitulant ce qu'a le droit de faire ou pas les fonctions utilisées dans chacun des cas : gestionnaire d'interruption classique, tasklet, workqueue, threaded IRQ, ainsi que la latence d'exécution des trois derniers mécanismes.*
+
+testtab|testtab2
+-------|--------
+1      | 2
