@@ -3,12 +3,23 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
-#include <linux/miscdevice.h>
-#include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/wait.h>
+#include <linux/string.h>
+
+#define INPUT_FRAMEWORK
+
+// For input device
+#ifdef INPUT_FRAMEWORK
+#include <linux/input.h>
+// For misc device
+#else
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#endif
+
 
 //############################################################################################//
 //#######################################[ Constants ]########################################//
@@ -43,6 +54,7 @@
 
 #define DATA_BUF_SIZE   32
 
+
 // 20 = 0x14  = 10100
 // stream, 20 samples = 0x94 = 1001 0100
 
@@ -52,76 +64,31 @@ MODULE_AUTHOR("alopez");
 
 struct accel_device {
         /* channel currently in use */
+#ifdef INPUT_FRAMEWORK
+        struct input_dev * input;
+#else
         int used_channel;
+        struct miscdevice miscdev;
+#endif
         char data[3][DATA_BUF_SIZE];
         char data_size;
         wait_queue_head_t queue;
-        /* Le périphérique misc correspondant */
-        struct miscdevice miscdev;
 };
 
-
+#ifndef INPUT_FRAMEWORK
 static char used_channel;
 module_param(used_channel, byte, S_IRUGO);
 MODULE_PARM_DESC(used_channel, "The channel read by read() X=0, Y=1, Z=2");
+#endif
 
 //############# Functions declaration
-char            i2c_write_byte  (struct i2c_client *client, char reg_addr,	char reg_value);
+char            i2c_write_byte  (struct i2c_client *client, char reg_addr, char reg_value);
 char            i2c_read_byte   (struct i2c_client *client, char reg_addr);
-void            i2c_init  (struct i2c_client *client);
+void            i2c_init        (struct i2c_client *client);
 
+#ifndef INPUT_FRAMEWORK
 //############################################################################################//
-//#################################[ interrupt functions ]####################################//
-//############################################################################################//
-irqreturn_t accel_handler(int irq, void *dev_id){
-        struct i2c_client *client = (struct i2c_client *) dev_id;
-
-        if(irq != client->irq){
-                dev_alert(&client->dev, "Bad irq number!\n");
-                return IRQ_NONE;
-        }
-        // reveiller les taches
-        return IRQ_WAKE_THREAD;
-}
-
-irqreturn_t accel_thread_handler(int irq, void *dev_id){
-        struct i2c_client *client = (struct i2c_client *) dev_id;
-        struct accel_device *acceldev = i2c_get_clientdata(client);
-        // Getting sample count in FIFO
-        char send_buf = FIFO_STATUS;
-        unsigned char nb_samples;
-        int retval = i2c_master_send(client, &send_buf,1);
-        retval = i2c_master_recv(client,&nb_samples, 1);
-        if(retval != 1) return -1;
-        nb_samples = nb_samples & 0x3F;
-
-        if(nb_samples > 32) {
-                dev_emerg(&client->dev, "ERROR : wrong value read from FIFO_STATUS\n");
-                return -1;
-        }
-        unsigned int i = 0;
-        for(i=0; i <nb_samples; i++){
-                send_buf = DATAX0;
-                char recv_buf[6];
-                retval = i2c_master_send(client, &send_buf,1);
-                retval = i2c_master_recv(client,recv_buf, 6);
-                if(retval != 6) {
-                        dev_emerg(&client->dev, "ERROR : Could not read accel data\n");
-                        acceldev->data_size = 0;
-                        return -1;
-                }
-                acceldev->data[X_CHAN][i] = recv_buf[1];
-                acceldev->data[Y_CHAN][i] = recv_buf[3];
-                acceldev->data[Z_CHAN][i] = recv_buf[5];
-         }
-         acceldev->data_size = nb_samples;
-         wake_up_interruptible(&acceldev->queue);
-         return IRQ_HANDLED;
-
-}
-
-//############################################################################################//
-//###################################[ Driver functions ]#####################################//
+//###################################[ Misc functions ]#####################################//
 //############################################################################################//
 
 static ssize_t accel_read(struct file *file, char __user *buf, size_t count, loff_t * f_pos)
@@ -229,9 +196,73 @@ static long accel_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         return 0;
 }
 
+#endif
+
+//############################################################################################//
+//#################################[ interrupt functions ]####################################//
+//############################################################################################//
+irqreturn_t accel_handler(int irq, void *dev_id){
+        struct i2c_client *client = (struct i2c_client *) dev_id;
+
+        if(irq != client->irq){
+                dev_alert(&client->dev, "Bad irq number!\n");
+                return IRQ_NONE;
+        }
+        // reveiller les taches
+        return IRQ_WAKE_THREAD;
+}
+
+irqreturn_t accel_thread_handler(int irq, void *dev_id){
+        struct i2c_client *client = (struct i2c_client *) dev_id;
+        struct accel_device *acceldev = i2c_get_clientdata(client);
+        // Getting sample count in FIFO
+        char send_buf = FIFO_STATUS;
+        unsigned char nb_samples;
+        int retval = i2c_master_send(client, &send_buf,1);
+        retval = i2c_master_recv(client,&nb_samples, 1);
+        if(retval != 1) return -1;
+        nb_samples = nb_samples & 0x3F;
+
+        if(nb_samples > 32) {
+                dev_emerg(&client->dev, "ERROR : wrong value read from FIFO_STATUS\n");
+                return -1;
+        }
+        unsigned int i = 0;
+        for(i=0; i <nb_samples; i++){
+                send_buf = DATAX0;
+                char recv_buf[6];
+                retval = i2c_master_send(client, &send_buf,1);
+                retval = i2c_master_recv(client,recv_buf, 6);
+                if(retval != 6) {
+                        dev_emerg(&client->dev, "ERROR : Could not read accel data\n");
+                        acceldev->data_size = 0;
+                        return -1;
+                }
+                acceldev->data[X_CHAN][i] = recv_buf[1];
+                acceldev->data[Y_CHAN][i] = recv_buf[3];
+                acceldev->data[Z_CHAN][i] = recv_buf[5];
+         }
+         acceldev->data_size = nb_samples;
+#ifdef INPUT_FRAMEWORK
+         input_report_abs(acceldev->input, ABS_X, acceldev->data[X_CHAN][i-1]);
+         input_report_abs(acceldev->input, ABS_Y, acceldev->data[Y_CHAN][i-1]);
+         input_report_abs(acceldev->input, ABS_Z, acceldev->data[Z_CHAN][i-1]);
+         input_sync(acceldev->input);
+#else
+         wake_up_interruptible(&acceldev->queue);
+ #endif
+         return IRQ_HANDLED;
+
+}
+
+//############################################################################################//
+//###################################[ Driver functions ]#####################################//
+//############################################################################################//
+
 static int accel_probe(struct i2c_client *client,
                      const struct i2c_device_id *id)
 {
+#ifndef INPUT_FRAMEWORK
         // structure de callback
         struct file_operations *accel_fops;
         // Alloue la mémoire pour une nouvelle structure file_operations
@@ -240,6 +271,7 @@ static int accel_probe(struct i2c_client *client,
         accel_fops->read  = accel_read;
         accel_fops->unlocked_ioctl = accel_ioctl;
         accel_fops->compat_ioctl = accel_ioctl;
+#endif
 
 	//static struct accel_device *acceldev;
         // Alloue la mémoire pour une nouvelle structure accel_device
@@ -249,21 +281,47 @@ static int accel_probe(struct i2c_client *client,
 
         // Initialise la structure accel_device, par exemple avec les
         // informations issues du Device Tree
+#ifdef INPUT_FRAMEWORK
+        // Initialise la partie input device de accel_device
+        acceldev->input = devm_input_allocate_device(&client->dev);
+        if (!acceldev->input) {
+                 dev_emerg(&client->dev, "Not enough memory to allocate input_dev\n");
+                 return -ENOMEM;
+        }
+
+        acceldev->input->name = "accel";
+        acceldev->input->id.bustype = BUS_I2C;
+        acceldev->input->evbit[0] = BIT_MASK(EV_ABS);
+        acceldev->input->absbit[BIT_WORD(ABS_X)] |= BIT_MASK(ABS_X);
+        acceldev->input->absbit[BIT_WORD(ABS_Y)] |= BIT_MASK(ABS_Y);
+        acceldev->input->absbit[BIT_WORD(ABS_Z)] |= BIT_MASK(ABS_Z);
+        input_set_abs_params(acceldev->input, ABS_X, 0, 255, 0, 0);
+        input_set_abs_params(acceldev->input, ABS_Y, 0, 255, 0, 0);
+        input_set_abs_params(acceldev->input, ABS_Z, 0, 255, 0, 0);
+#else
+        // Initialise la partie miscdevice de accel_device
         used_channel = X_CHAN;
         acceldev->used_channel = X_CHAN;
-        acceldev->data_size = 0;
-        init_waitqueue_head(&acceldev->queue);
-
-        // Initialise la partie miscdevice de accel_device
         acceldev->miscdev.minor = MISC_DYNAMIC_MINOR;
         acceldev->miscdev.name = "accel";
         acceldev->miscdev.fops = accel_fops;
         acceldev->miscdev.parent = &client->dev;
+#endif
+        acceldev->data_size = 0;
+        init_waitqueue_head(&acceldev->queue);
+        i2c_set_clientdata(client, acceldev);
 
-        i2c_set_clientdata(client,acceldev );
 
-        // S'enregistre auprès du framework misc
-        misc_register(&acceldev->miscdev);
+#ifdef INPUT_FRAMEWORK
+        if (input_register_device(acceldev->input)) {
+                 dev_emerg(&client->dev, "Failed to register input device\n");
+                 input_free_device(acceldev->input);
+                 return ENOMEM;
+         }
+ #else
+         // S'enregistre auprès du framework misc
+         misc_register(&acceldev->miscdev);
+ #endif
 
         int retval = devm_request_threaded_irq(&client->dev,
                         client->irq,
@@ -273,7 +331,7 @@ static int accel_probe(struct i2c_client *client,
                         "accel_INT",
                         client);
         if(retval !=0){
-               dev_emerg(&client->dev,"accel : could not register interrupt!\n");
+               dev_emerg(&client->dev,"Could not register interrupt!\n");
                return -1;
         }
 
@@ -286,7 +344,11 @@ static int accel_remove(struct i2c_client *client)
 {
 	struct accel_device *acceldev;
 	acceldev = i2c_get_clientdata(client);
+#ifdef INPUT_FRAMEWORK
+        input_unregister_device(acceldev->input);
+#else
 	misc_deregister(&acceldev->miscdev);
+#endif
 	i2c_write_byte(client, POWER_CTL, STANDBY_MODE);
         return 0;
 }
