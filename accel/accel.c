@@ -269,7 +269,7 @@ static int accel_probe(struct i2c_client *client,
                         client->irq,
                         accel_handler,
                         accel_thread_handler,
-                        IRQF_SHARED,
+                        0,
                         "accel_INT",
                         client);
         if(retval !=0){
