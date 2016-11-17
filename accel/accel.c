@@ -110,16 +110,9 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
                         acceldev->data_size = 0;
                         return -1;
                 }
-                //x
                 acceldev->data[X_CHAN][i] = recv_buf[1];
-                //y
                 acceldev->data[Y_CHAN][i] = recv_buf[3];
-                //z
                 acceldev->data[Z_CHAN][i] = recv_buf[5];
-
-                //dev_emerg(&client->dev,
-                //         "Sample %i/%i: X = %i Y = %i Z = %i \n",i,nb_samples,
-                //         acceldev->data[0][i], acceldev->data[1][i], acceldev->data[2][i]);
          }
          acceldev->data_size = nb_samples;
          wake_up_interruptible(&acceldev->queue);
@@ -141,6 +134,7 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
         acceldev = i2c_get_clientdata(client);
 
         int retval = 0;
+        // If no need to use queue because we know we will not block
         if(count < acceldev->data_size){
                 switch(acceldev->used_channel){
                 case X_CHAN:
@@ -158,32 +152,37 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                 }
                 acceldev->data_size = 0;
                 if (retval!=0){    // if true then have success
-                        dev_alert(&client->dev, " Failed to send %d characters to the user\n", retval);
+                        dev_alert(&client->dev,
+                                " Failed to send %d characters to the user\n",
+                                retval);
                         return -1;              // Failed
                 }
                 return count;
         }
-        //more thant data_size to read
+        //more thant data_size to read, we will block
         int samples_read = 0;
         int to_read = 0;
         while (samples_read < count){
+                //determine how many samples we will write to userspace
                 if(count - samples_read < acceldev->data_size)
                         to_read = count - samples_read;
                 else to_read = acceldev->data_size;
 
         	switch(acceldev->used_channel){
         	case X_CHAN:
-                        retval = copy_to_user(buf, acceldev->data[X_CHAN], to_read);
+                        retval = copy_to_user(buf + samples_read, acceldev->data[X_CHAN], to_read);
         		break;
         	case Y_CHAN:
-                        retval = copy_to_user(buf, acceldev->data[Y_CHAN], to_read);
+                        retval = copy_to_user(buf+ samples_read, acceldev->data[Y_CHAN], to_read);
         		break;
         	case Z_CHAN:
-                        retval = copy_to_user(buf, acceldev->data[Z_CHAN], to_read);
+                        retval = copy_to_user(buf + samples_read, acceldev->data[Z_CHAN], to_read);
         		break;
         	}
                 if (retval!=0){    // if true then have success
-                        dev_alert(&client->dev, " Failed to send %d characters to the user\n", retval);
+                        dev_alert(&client->dev,
+                                " Failed to send %d characters to the user\n",
+                                retval);
                         return -1;              // Failed
                 }
                 samples_read += to_read;

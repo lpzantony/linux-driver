@@ -49,7 +49,7 @@ int main (void)
                 }
                 int i=0;
                 for(i=0; i<retval; i++){
-                        if(msg[i] != 0)
+                        //if(msg[i] != 0)
                         printf("sample n° %03i/%03i : %03i\n",i+1, retval, msg[i]);
                 }
 
