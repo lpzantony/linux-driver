@@ -9,6 +9,7 @@
 #define Y_CHAN		1
 #define Z_CHAN		2
 
+#define READ_SIZE       55
 int fd;
 void signalHandler( int signum ) {
         printf("\nSIGINT: Ending userapp\n");
@@ -20,40 +21,42 @@ int main (void)
 {
         signal(SIGINT,  signalHandler);
         //opening accel driver
-        fd = open("/dev/accelX", O_RDWR);
+        fd = open("/dev/accel", O_RDWR);
         if(fd == -1){
                 perror("could not open /dev/accelX");
                 return -1;
         }
-        printf("AccelX opened!\n");
 
         // ioctl on accel driver
-        int retval = ioctl( fd, 0, Z_CHAN);
+        char chan = Z_CHAN;
+        int retval = ioctl( fd, 0, chan);
         if(retval == -1){
-                perror("could not use ioctl() on /dev/accelX");
+                perror("could not use ioctl() on /dev/accel");
                 return -1;
         }
-        printf("ioctl called! \n");
 
         //reading from accel driver
-        char msg;
+        char msg[READ_SIZE] = "";
         while(1){
-                retval = read(fd, &msg, 1);
+                retval = read(fd, msg, READ_SIZE);
                 if(retval == -1){
-                        perror("could not read /dev/accelX");
+                        perror("could not read /dev/accel");
                         return -1;
                 }
-                //printf("retval = %i, 0x%02X\n", retval, msg);
-                int i = 0;
-                for(i=0; i<msg/5; i++){
-                        printf("=");
+                if(retval != READ_SIZE){
+                        perror("amount of samples read not expected ");
+                        return -1;
                 }
-                printf(">\n");
-                usleep(8000);
+                int i=0;
+                for(i=0; i<retval; i++){
+                        if(msg[i] != 0)
+                        printf("sample n° %03i/%03i : %03i\n",i+1, retval, msg[i]);
+                }
+
         }
 
         //closing accel driver
         close(fd);
-        printf("AccelX closed!\n");
+        printf("Accel closed!\n");
         return 0;
 }
