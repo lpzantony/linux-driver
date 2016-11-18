@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <linux/input.h>
 
-//#define INPUT_FRAMEWORK
+#define INPUT_FRAMEWORK
 
 #ifdef INPUT_FRAMEWORK
 char *events[EV_MAX + 1] = {

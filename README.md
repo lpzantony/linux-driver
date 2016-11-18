@@ -105,3 +105,6 @@ gestionnaire d'interruption classique (__GIC__)| Pas d'échange vers le userspac
 tasklet      | On peut executer des traitements relativement longs mais toujours pas le droit aux fonctions bloquantes. Ce gestionnaire d'interruption s'exécute toujours dans le contexte d'interruption donc assez rapidement après le GIC
 workqueue    | Contrairement aux tasklets, le travail effectué par une workqueue est exécuté dans le contexte d'un processus, on peut donc prendre tout le temps dont on a besoin et même appeler des fonctions bloquantes. Une workqueue peut être explicitement retardée avec une valeur de temps exprimée en _jiffies_. Elle est donc possiblement exécutée bien plus tard que le GIC.
 threaded IRQ |le gestionnaire threaded IRQ permet de traiter une interruption dans un thread noyau. Les opérations de traitement de l'interruption peuvent alors être bloquantes.
+
+Outil pour afficher les interruptions actives en live:
+>watch -n1 "cat /proc/interrupts"

@@ -9,7 +9,7 @@
 #include <linux/wait.h>
 #include <linux/string.h>
 
-//#define INPUT_FRAMEWORK
+#define INPUT_FRAMEWORK
 
 // For input device
 #ifdef INPUT_FRAMEWORK
@@ -71,10 +71,11 @@ struct accel_device {
         int used_channel;
         struct miscdevice miscdev;
         struct mutex lock;
+        wait_queue_head_t queue;
 #endif
         char data[3][DATA_BUF_SIZE];
         char data_size;
-        wait_queue_head_t queue;
+
 };
 
 #ifndef INPUT_FRAMEWORK
@@ -291,13 +292,10 @@ static int accel_probe(struct i2c_client *client,
         accel_fops->unlocked_ioctl = accel_ioctl;
         accel_fops->compat_ioctl = accel_ioctl;
 #endif
-
-	//static struct accel_device *acceldev;
         // Alloue la mémoire pour une nouvelle structure accel_device
         static struct accel_device *acceldev;
         acceldev = devm_kzalloc(&client->dev, sizeof(struct accel_device), GFP_KERNEL);
         if (!acceldev) return -ENOMEM;
-
 
         // Initialise la structure accel_device, par exemple avec les
         // informations issues du Device Tree
@@ -327,9 +325,10 @@ static int accel_probe(struct i2c_client *client,
         acceldev->miscdev.fops = accel_fops;
         acceldev->miscdev.parent = &client->dev;
         mutex_init(&acceldev->lock);
+        init_waitqueue_head(&acceldev->queue);
 #endif
         acceldev->data_size = 0;
-        init_waitqueue_head(&acceldev->queue);
+
         i2c_set_clientdata(client, acceldev);
 
 
@@ -399,7 +398,6 @@ static struct i2c_driver accel_driver = {
         .name   = "accel",
         .of_match_table = of_match_ptr(accel_of_match),
     },
-
     .id_table       = accel_idtable,
     .probe          = accel_probe,
     .remove         = accel_remove,
