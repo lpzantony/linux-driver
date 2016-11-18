@@ -88,7 +88,7 @@ void            i2c_init        (struct i2c_client *client);
 
 #ifndef INPUT_FRAMEWORK
 //############################################################################################//
-//###################################[ Misc functions ]#####################################//
+//###################################[ Misc functions ]#######################################//
 //############################################################################################//
 
 static ssize_t accel_read(struct file *file, char __user *buf, size_t count, loff_t * f_pos)
@@ -252,7 +252,6 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
          wake_up_interruptible(&acceldev->queue);
  #endif
          return IRQ_HANDLED;
-
 }
 
 //############################################################################################//
@@ -352,8 +351,6 @@ static int accel_remove(struct i2c_client *client)
 	i2c_write_byte(client, POWER_CTL, STANDBY_MODE);
         return 0;
 }
-
-
 
 //############################################################################################//
 //##################################[ Global structures ]#####################################//
