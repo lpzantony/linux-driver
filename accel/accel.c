@@ -9,7 +9,7 @@
 #include <linux/wait.h>
 #include <linux/string.h>
 
-#define INPUT_FRAMEWORK
+//#define INPUT_FRAMEWORK
 
 // For input device
 #ifdef INPUT_FRAMEWORK
@@ -18,6 +18,7 @@
 #else
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
+#include <linux/mutex.h>
 #endif
 
 
@@ -69,6 +70,7 @@ struct accel_device {
 #else
         int used_channel;
         struct miscdevice miscdev;
+        struct mutex lock;
 #endif
         char data[3][DATA_BUF_SIZE];
         char data_size;
@@ -102,7 +104,9 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
 
         int retval = 0;
         // If no need to use queue because we know we will not block
+        mutex_lock(&acceldev->lock);
         if(count < acceldev->data_size){
+
                 switch(acceldev->used_channel){
                 case X_CHAN:
                         //retval8 = acceldev->data[X_CHAN][i];
@@ -122,14 +126,18 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                         dev_alert(&client->dev,
                                 " Failed to send %d characters to the user\n",
                                 retval);
+                        mutex_unlock(&acceldev->lock);
                         return -1;              // Failed
                 }
+                mutex_unlock(&acceldev->lock);
                 return count;
         }
+        mutex_unlock(&acceldev->lock);
         //more thant data_size to read, we will block
         int samples_read = 0;
         int to_read = 0;
         while (samples_read < count){
+                mutex_lock(&acceldev->lock);
                 //determine how many samples we will write to userspace
                 if(count - samples_read < acceldev->data_size)
                         to_read = count - samples_read;
@@ -150,8 +158,10 @@ static ssize_t accel_read(struct file *file, char __user *buf, size_t count, lof
                         dev_alert(&client->dev,
                                 " Failed to send %d characters to the user\n",
                                 retval);
+                        mutex_unlock(&acceldev->lock);
                         return -1;              // Failed
                 }
+                mutex_unlock(&acceldev->lock);
                 samples_read += to_read;
                 acceldev->data_size = 0;
                 //block
@@ -218,6 +228,9 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
         // Getting sample count in FIFO
         char send_buf = FIFO_STATUS;
         unsigned char nb_samples;
+#ifndef INPUT_FRAMEWORK
+        mutex_lock(&acceldev->lock);
+#endif
         int retval = i2c_master_send(client, &send_buf,1);
         retval = i2c_master_recv(client,&nb_samples, 1);
         if(retval != 1) return -1;
@@ -225,6 +238,9 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
 
         if(nb_samples > 32) {
                 dev_emerg(&client->dev, "ERROR : wrong value read from FIFO_STATUS\n");
+#ifndef INPUT_FRAMEWORK
+                mutex_unlock(&acceldev->lock);
+#endif
                 return -1;
         }
         unsigned int i = 0;
@@ -236,6 +252,9 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
                 if(retval != 6) {
                         dev_emerg(&client->dev, "ERROR : Could not read accel data\n");
                         acceldev->data_size = 0;
+#ifndef INPUT_FRAMEWORK
+                        mutex_unlock(&acceldev->lock);
+#endif
                         return -1;
                 }
                 acceldev->data[X_CHAN][i] = recv_buf[1];
@@ -249,6 +268,7 @@ irqreturn_t accel_thread_handler(int irq, void *dev_id){
          input_report_abs(acceldev->input, ABS_Z, acceldev->data[Z_CHAN][i-1]);
          input_sync(acceldev->input);
 #else
+         mutex_unlock(&acceldev->lock);
          wake_up_interruptible(&acceldev->queue);
  #endif
          return IRQ_HANDLED;
@@ -278,6 +298,7 @@ static int accel_probe(struct i2c_client *client,
         acceldev = devm_kzalloc(&client->dev, sizeof(struct accel_device), GFP_KERNEL);
         if (!acceldev) return -ENOMEM;
 
+
         // Initialise la structure accel_device, par exemple avec les
         // informations issues du Device Tree
 #ifdef INPUT_FRAMEWORK
@@ -305,6 +326,7 @@ static int accel_probe(struct i2c_client *client,
         acceldev->miscdev.name = "accel";
         acceldev->miscdev.fops = accel_fops;
         acceldev->miscdev.parent = &client->dev;
+        mutex_init(&acceldev->lock);
 #endif
         acceldev->data_size = 0;
         init_waitqueue_head(&acceldev->queue);
